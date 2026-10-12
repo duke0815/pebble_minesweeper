@@ -1,0 +1,27 @@
+{
+  "name": "pebble-minesweeper",
+  "author": "duke0815",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Minesweeper",
+    "uuid": "6b1f3c2e-8a4d-4e7b-9c51-2f0d7a9e4b13",
+    "sdkVersion": "3",
+    "enableMultiJS": false,
+    "targetPlatforms": [
+      "emery",
+      "basalt",
+      "diorite",
+      "flint"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    }
+  }
+}
