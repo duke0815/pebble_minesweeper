@@ -31,7 +31,7 @@
 #define RECORD_FRAMES 80
 #define ANIM_SKIP_AFTER 12
 #define INTRO_MS 4000
-#define NUM_PARTICLES 32
+#define NUM_PARTICLES 40
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
@@ -203,8 +203,8 @@ static void draw_flag(GContext *ctx, GRect r, GColor pole) {
 
 static void draw_trophy(GContext *ctx, GPoint c, int u) {
   if (u < 3) return;
-  GColor gold = PBL_IF_COLOR_ELSE(GColorChromeYellow, GColorWhite);
-  GColor light = PBL_IF_COLOR_ELSE(GColorIcterine, GColorWhite);
+  GColor gold = PBL_IF_COLOR_ELSE(GColorYellow, GColorWhite);
+  GColor light = GColorWhite;
   GColor dark = PBL_IF_COLOR_ELSE(GColorWindsorTan, GColorBlack);
   GColor plinth = PBL_IF_COLOR_ELSE(GColorWindsorTan, GColorWhite);
 
@@ -350,7 +350,7 @@ static void init_debris(void) {
 static void init_confetti(GRect b) {
   for (int i = 0; i < NUM_PARTICLES; i++) {
     s_px[i] = rand() % b.size.w;
-    s_py[i] = -(rand() % b.size.h) - 6;
+    s_py[i] = -(rand() % (b.size.h * 2 / 3)) - 8;
     s_pvy[i] = 3 + rand() % 4;
     s_pvx[i] = rand() % TRIG_MAX_ANGLE;  // Phase fuer das Pendeln
     s_pcol[i] = rand() % 7;
@@ -641,7 +641,7 @@ static void draw_lose_anim(GContext *ctx, GRect b) {
       int y = s_py[i] + (s_pvy[i] * t + 3 * t * t) / 16;
       graphics_context_set_fill_color(ctx, (i & 1) ? PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack)
                                                    : PBL_IF_COLOR_ELSE(GColorOrange, GColorBlack));
-      int sz = (i % 3) + 2;
+      int sz = (i % 3) + 3;
       graphics_fill_rect(ctx, GRect(x, y, sz, sz), 0, GCornerNone);
     }
   }
@@ -678,11 +678,11 @@ static void draw_win_anim(GContext *ctx, GRect b) {
   // Konfetti
   for (int i = 0; i < NUM_PARTICLES; i++) {
     int y = s_py[i] + s_pvy[i] * f;
-    if (y < -6 || y > b.size.h) continue;
+    if (y < -8 || y > b.size.h) continue;
     int x = s_px[i] + 5 * sin_lookup(s_pvx[i] + f * TRIG_MAX_ANGLE / 20) / TRIG_MAX_RATIO;
     graphics_context_set_fill_color(ctx, particle_color(s_pcol[i]));
     bool tall = ((f / 4 + i) & 1);
-    graphics_fill_rect(ctx, GRect(x, y, tall ? 3 : 5, tall ? 5 : 3), 0, GCornerNone);
+    graphics_fill_rect(ctx, GRect(x, y, tall ? 4 : 7, tall ? 7 : 4), 0, GCornerNone);
   }
   // Banner faehrt von links herein
   if (f >= 6) {
