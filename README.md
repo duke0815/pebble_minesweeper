@@ -20,8 +20,9 @@ Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Kein Touch – reine Tas
 
 | Taste | Aktion |
 |---|---|
-| UP / DOWN | Cursor ein Feld zurück / weiter (zeilenweise, mit Umbruch) |
-| UP / DOWN halten | eine ganze Zeile hoch / runter |
+| UP | Cursor horizontal nach rechts (am Zeilenende zurück an den Anfang) |
+| DOWN | Cursor vertikal nach unten (am Spaltenende zurück nach oben) |
+| UP / DOWN halten | Cursor läuft automatisch weiter |
 | SELECT | Feld öffnen (auf einer Zahl: Nachbarn öffnen, wenn Fähnchen passen) |
 | SELECT halten | Fähnchen setzen / entfernen |
 | BACK | zurück ins Menü |

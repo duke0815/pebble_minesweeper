@@ -2,8 +2,9 @@
  * Minesweeper fuer Pebble Time 2 (emery) – laeuft auch auf basalt/diorite/flint.
  *
  * Steuerung (kein Touch):
- *   UP / DOWN            Feld vor / zurueck (8x8 = 64 Felder, zeilenweise)
- *   UP / DOWN halten     eine ganze Zeile springen
+ *   UP                   Cursor nach rechts (horizontal, mit Umbruch in der Zeile)
+ *   DOWN                 Cursor nach unten (vertikal, mit Umbruch in der Spalte)
+ *   UP / DOWN halten     Cursor laeuft automatisch weiter
  *   SELECT               Feld aufdecken (auf Zahl: Nachbarn aufdecken)
  *   SELECT halten        Faehnchen setzen / entfernen
  *   BACK                 zurueck ins Menue
@@ -31,6 +32,7 @@
 #define RECORD_FRAMES 80
 #define ANIM_SKIP_AFTER 12
 #define INTRO_MS 4000
+#define CURSOR_REPEAT_MS 250
 #define NUM_PARTICLES 40
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
@@ -882,8 +884,11 @@ static void end_confirm(void) {
   }
 }
 
-static void move_cursor(int delta) {
-  s_cursor = (s_cursor + delta + CELLS) % CELLS;
+// UP = horizontal (nach rechts), DOWN = vertikal (nach unten), jeweils mit Umbruch
+static void move_cursor(int dx, int dy) {
+  int x = (s_cursor % GRID_W + dx) % GRID_W;
+  int y = (s_cursor / GRID_W + dy) % GRID_H;
+  s_cursor = y * GRID_W + x;
   layer_mark_dirty(s_game_layer);
 }
 
@@ -894,7 +899,7 @@ static void game_up_click(ClickRecognizerRef rec, void *ctx) {
     layer_mark_dirty(s_game_layer);
     return;
   }
-  move_cursor(-1);
+  move_cursor(1, 0);
 }
 
 static void game_down_click(ClickRecognizerRef rec, void *ctx) {
@@ -904,17 +909,7 @@ static void game_down_click(ClickRecognizerRef rec, void *ctx) {
     layer_mark_dirty(s_game_layer);
     return;
   }
-  move_cursor(1);
-}
-
-static void game_up_long(ClickRecognizerRef rec, void *ctx) {
-  if (s_state == ST_READY || s_state == ST_PLAYING) move_cursor(-GRID_W);
-  else game_up_click(rec, ctx);
-}
-
-static void game_down_long(ClickRecognizerRef rec, void *ctx) {
-  if (s_state == ST_READY || s_state == ST_PLAYING) move_cursor(GRID_W);
-  else game_down_click(rec, ctx);
+  move_cursor(0, 1);
 }
 
 static void game_select_click(ClickRecognizerRef rec, void *ctx) {
@@ -932,10 +927,9 @@ static void game_select_long(ClickRecognizerRef rec, void *ctx) {
 }
 
 static void game_click_config(void *ctx) {
-  window_single_click_subscribe(BUTTON_ID_UP, game_up_click);
-  window_single_click_subscribe(BUTTON_ID_DOWN, game_down_click);
-  window_long_click_subscribe(BUTTON_ID_UP, 400, game_up_long, NULL);
-  window_long_click_subscribe(BUTTON_ID_DOWN, 400, game_down_long, NULL);
+  // Halten = Cursor laeuft automatisch weiter
+  window_single_repeating_click_subscribe(BUTTON_ID_UP, CURSOR_REPEAT_MS, game_up_click);
+  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, CURSOR_REPEAT_MS, game_down_click);
   window_single_click_subscribe(BUTTON_ID_SELECT, game_select_click);
   window_long_click_subscribe(BUTTON_ID_SELECT, 400, game_select_long, NULL);
 }
@@ -985,8 +979,8 @@ static void intro_update_proc(Layer *layer, GContext *ctx) {
                      GTextAlignmentCenter, NULL);
   y += big ? 30 : 24;
 
-  static const char *const keys[] = {"UP / DOWN", "... halten", "SELECT", "... halten", "BACK"};
-  static const char *const acts[] = {"Feld wählen", "Zeile springen", "Feld öffnen", "Fähnchen", "Menü"};
+  static const char *const keys[] = {"UP", "DOWN", "SELECT", "... halten", "BACK"};
+  static const char *const acts[] = {"nach rechts", "nach unten", "Feld öffnen", "Fähnchen", "Menü"};
   GFont kf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
   GFont af = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
   int lh = big ? 24 : 18;
