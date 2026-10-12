@@ -120,8 +120,8 @@ const jobs = [
   // Store-Icons
   { out: 'icon_144x144.png', w: 144, h: 144, transparent: true,
     html: `<!doctype html><html><body style="margin:0;background:transparent">${mineSvg(144, true)}</body></html>` },
-  { out: 'icon_48x48.png', w: 48, h: 48, transparent: true,
-    html: `<!doctype html><html><body style="margin:0;background:transparent">${mineSvg(48, true)}</body></html>` },
+  { out: 'icon_80x80.png', w: 80, h: 80, transparent: true,
+    html: `<!doctype html><html><body style="margin:0;background:transparent">${mineSvg(80, true)}</body></html>` },
 ];
 
 (async () => {

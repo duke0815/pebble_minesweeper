@@ -53,12 +53,12 @@ minesweeper, puzzle, game, mines, logic, classic, highscore
 | Feld im Portal | Datei |
 |---|---|
 | Large icon (144×144) | `graphics/icon_144x144.png` |
-| Small icon (48×48) | `graphics/icon_48x48.png` |
-| Header/Banner (720×320) | `graphics/banner_720x320.png` |
-| Screenshots Pebble Time 2 (emery, 200×228) | `screenshots/emery/*.png` |
+| Small icon (80×80) | `graphics/icon_80x80.png` |
+| Banner (720×320, optional, pro Plattform – überall dasselbe hochladen) | `graphics/banner_720x320.png` |
+| Screenshots Pebble Time 2 (emery, 200×228, max. 5) | `screenshots/emery/*.png` |
 | Screenshots Pebble Time (basalt, 144×168) | `screenshots/basalt/*.png` |
 | Screenshots Pebble 2 / 2 Duo (diorite/flint, 144×168, s/w) | `screenshots/diorite/*.png` |
-| Promo-Bilder (1080×1080, Website/Social) | `graphics/promo_*.png` |
+| *(kein Store-Feld)* Promo-Bilder 1080×1080 für Website, README, Reddit/Discord | `graphics/promo_*.png` |
 
 Die Screenshots stammen aus dem Pebble-Emulator. Highscores und Spielstände wurden dafür
 mit einem Testbuild vorbereitet; Grafik und Texte sind die der echten App.
