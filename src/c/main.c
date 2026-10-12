@@ -8,6 +8,8 @@
  *   SELECT               Feld aufdecken (auf Zahl: Nachbarn aufdecken)
  *   SELECT halten        Faehnchen setzen / entfernen
  *   BACK                 zurueck ins Menue
+ *
+ * Nach jedem Spiel: Animation -> Highscore-Liste -> End-Menue (Nochmal / Beenden = Hauptmenue).
  */
 #include <pebble.h>
 
@@ -31,7 +33,6 @@
 #define WIN_FRAMES 60
 #define RECORD_FRAMES 80
 #define ANIM_SKIP_AFTER 12
-#define INTRO_MS 4000
 #define CURSOR_REPEAT_MS 250
 #define NUM_PARTICLES 40
 
@@ -49,8 +50,8 @@ typedef enum {
   ST_DONE,        // End-Menue
 } GameState;
 
-typedef enum { END_NEW = 0, END_RETRY, END_QUIT, END_COUNT } EndOption;
-static const char *const END_LABELS[END_COUNT] = {"Neues Spiel", "Nochmal", "Beenden"};
+typedef enum { END_RETRY = 0, END_QUIT, END_COUNT } EndOption;
+static const char *const END_LABELS[END_COUNT] = {"Nochmal", "Beenden"};
 
 // ---------------------------------------------------------------------------
 // Zustand
@@ -58,8 +59,8 @@ static const char *const END_LABELS[END_COUNT] = {"Neues Spiel", "Nochmal", "Bee
 static Window *s_menu_window, *s_intro_window, *s_game_window, *s_hs_window, *s_settings_window;
 static MenuLayer *s_menu_layer, *s_settings_layer;
 static Layer *s_intro_layer, *s_game_layer, *s_hs_layer;
-static AppTimer *s_intro_timer, *s_anim_timer;
-static bool s_intro_auto;
+static AppTimer *s_anim_timer;
+static bool s_hs_from_game;  // Highscore-Liste nach Spielende
 
 static bool s_backlight;
 static uint16_t s_hs[NUM_LEVELS][HS_COUNT];
@@ -288,7 +289,7 @@ static void game_reset(void) {
   s_flags = 0;
   s_exploded = -1;
   s_rank = -1;
-  s_end_sel = END_NEW;
+  s_end_sel = END_RETRY;
   s_lost = false;
   s_seconds = 0;
   s_state = ST_READY;
@@ -473,6 +474,9 @@ static void anim_finished(void) {
     return;
   }
   s_state = ST_DONE;
+  // Highscore-Liste anzeigen; danach erscheint das End-Menue
+  s_hs_from_game = true;
+  window_stack_push(s_hs_window, true);
 }
 
 static void anim_tick(void *data) {
@@ -872,14 +876,11 @@ static void game_update_proc(Layer *layer, GContext *ctx) {
 // ---------------------------------------------------------------------------
 static void end_confirm(void) {
   switch (s_end_sel) {
-    case END_NEW:
-      window_stack_remove(s_game_window, true);  // zurueck zur Schwierigkeitsauswahl
-      break;
     case END_RETRY:
       game_reset();
       break;
     default:
-      window_stack_pop_all(false);  // App beenden
+      window_stack_remove(s_game_window, true);  // zurueck ins Hauptmenue
       break;
   }
 }
@@ -1001,25 +1002,12 @@ static void intro_update_proc(Layer *layer, GContext *ctx) {
 
   GFont hf = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
-  graphics_draw_text(ctx, s_intro_auto ? "Taste drücken zum Starten" : "Taste drücken für zurück", hf,
+  graphics_draw_text(ctx, "Taste drücken für zurück", hf,
                      GRect(0, b.size.h - 20, b.size.w, 18), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
-static void intro_dismiss(void) {
-  if (s_intro_timer) {
-    app_timer_cancel(s_intro_timer);
-    s_intro_timer = NULL;
-  }
-  window_stack_remove(s_intro_window, true);
-}
-
-static void intro_timeout(void *data) {
-  s_intro_timer = NULL;
-  intro_dismiss();
-}
-
 static void intro_click(ClickRecognizerRef rec, void *ctx) {
-  intro_dismiss();
+  window_stack_remove(s_intro_window, true);
 }
 
 static void intro_click_config(void *ctx) {
@@ -1035,25 +1023,8 @@ static void intro_window_load(Window *w) {
   layer_add_child(root, s_intro_layer);
 }
 
-static void intro_window_appear(Window *w) {
-  if (s_intro_auto && !s_intro_timer) s_intro_timer = app_timer_register(INTRO_MS, intro_timeout, NULL);
-}
-
-static void intro_window_disappear(Window *w) {
-  if (s_intro_timer) {
-    app_timer_cancel(s_intro_timer);
-    s_intro_timer = NULL;
-  }
-  s_intro_auto = false;
-}
-
 static void intro_window_unload(Window *w) {
   layer_destroy(s_intro_layer);
-}
-
-static void show_intro(bool auto_dismiss) {
-  s_intro_auto = auto_dismiss;
-  window_stack_push(s_intro_window, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,11 +1050,18 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
   GFont vf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
   int rw = big ? 22 : 16;
   int cw = (b.size.w - rw) / NUM_LEVELS;
-  int lh = big ? 26 : 20;
+  int lh = big ? 26 : 18;
   int y = th + 4;
 
   for (int l = 0; l < NUM_LEVELS; l++) {
-    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorBlack));
+    bool played = s_hs_from_game && l == s_level;
+    if (played) {
+      // Spalte der gespielten Stufe markieren
+      graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorCeleste, GColorBlack));
+      graphics_fill_rect(ctx, GRect(rw + l * cw + 1, y, cw - 2, lh * (HS_COUNT + 1) + 3), 3, GCornersAll);
+    }
+    graphics_context_set_text_color(ctx, played ? PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite)
+                                                 : PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorBlack));
     graphics_draw_text(ctx, LEVEL_NAMES[l], hf, GRect(rw + l * cw, y, cw, lh), GTextOverflowModeFill,
                        GTextAlignmentCenter, NULL);
   }
@@ -1093,7 +1071,7 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
   y += 3;
 
   for (int i = 0; i < HS_COUNT; i++) {
-    if (i == 0) {
+    if (i == 0 && !s_hs_from_game) {
       graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorIcterine, GColorWhite));
       graphics_fill_rect(ctx, GRect(0, y, b.size.w, lh), 0, GCornerNone);
     }
@@ -1105,11 +1083,47 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
       char tb[16];
       if (s_hs[l][i] == HS_EMPTY) snprintf(tb, sizeof(tb), "--");
       else fmt_time(tb, sizeof(tb), s_hs[l][i]);
-      graphics_draw_text(ctx, tb, i == 0 ? hf : vf, GRect(rw + l * cw, y - 2, cw, lh), GTextOverflowModeFill,
-                         GTextAlignmentCenter, NULL);
+      bool played = s_hs_from_game && l == s_level;
+      bool fresh = played && !s_lost && i == s_rank;
+      if (fresh) {
+        // gerade erreichter Eintrag
+        graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorIslamicGreen, GColorWhite));
+        graphics_fill_rect(ctx, GRect(rw + l * cw + 4, y, cw - 8, lh - 1), 4, GCornersAll);
+      }
+      graphics_context_set_text_color(ctx, fresh ? PBL_IF_COLOR_ELSE(GColorWhite, GColorBlack)
+                                                 : (played ? PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite) : GColorBlack));
+      graphics_draw_text(ctx, tb, (i == 0 || fresh) ? hf : vf, GRect(rw + l * cw, y - 2, cw, lh),
+                         GTextOverflowModeFill, GTextAlignmentCenter, NULL);
     }
+    graphics_context_set_text_color(ctx, GColorBlack);
     y += lh;
   }
+
+  if (s_hs_from_game) {
+    // Ergebnis der Runde + Hinweis
+    char tb[16], buf[48];
+    fmt_time(tb, sizeof(tb), s_seconds);
+    if (s_lost) snprintf(buf, sizeof(buf), "Verloren - Taste: weiter");
+    else snprintf(buf, sizeof(buf), "Deine Zeit: %s - Taste: weiter", tb);
+    int fh = big ? 22 : 18;
+    graphics_context_set_fill_color(ctx, s_lost ? PBL_IF_COLOR_ELSE(GColorRed, GColorBlack)
+                                                : PBL_IF_COLOR_ELSE(GColorIslamicGreen, GColorBlack));
+    graphics_fill_rect(ctx, GRect(0, b.size.h - fh, b.size.w, fh), 0, GCornerNone);
+    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_draw_text(ctx, buf, fonts_get_system_font(big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD),
+                       GRect(0, b.size.h - fh - (big ? 3 : 2), b.size.w, fh + 4), GTextOverflowModeTrailingEllipsis,
+                       GTextAlignmentCenter, NULL);
+  }
+}
+
+static void hs_click(ClickRecognizerRef rec, void *ctx) {
+  window_stack_remove(s_hs_window, true);
+}
+
+static void hs_click_config(void *ctx) {
+  window_single_click_subscribe(BUTTON_ID_UP, hs_click);
+  window_single_click_subscribe(BUTTON_ID_SELECT, hs_click);
+  window_single_click_subscribe(BUTTON_ID_DOWN, hs_click);
 }
 
 static void hs_window_load(Window *w) {
@@ -1202,9 +1216,12 @@ static void mm_select(MenuLayer *m, MenuIndex *idx, void *data) {
     return;
   }
   switch (idx->row) {
-    case MM_HIGHSCORES: window_stack_push(s_hs_window, true); break;
+    case MM_HIGHSCORES:
+      s_hs_from_game = false;
+      window_stack_push(s_hs_window, true);
+      break;
     case MM_SETTINGS: window_stack_push(s_settings_window, true); break;
-    default: show_intro(false); break;
+    default: window_stack_push(s_intro_window, true); break;
   }
 }
 
@@ -1252,16 +1269,14 @@ static void init(void) {
   s_menu_window = make_window((WindowHandlers){
     .load = menu_window_load, .appear = menu_window_appear, .unload = menu_window_unload}, NULL);
   s_intro_window = make_window((WindowHandlers){
-    .load = intro_window_load, .appear = intro_window_appear,
-    .disappear = intro_window_disappear, .unload = intro_window_unload}, intro_click_config);
+    .load = intro_window_load, .unload = intro_window_unload}, intro_click_config);
   s_game_window = make_window((WindowHandlers){
     .load = game_window_load, .unload = game_window_unload}, game_click_config);
-  s_hs_window = make_window((WindowHandlers){.load = hs_window_load, .unload = hs_window_unload}, NULL);
+  s_hs_window = make_window((WindowHandlers){.load = hs_window_load, .unload = hs_window_unload}, hs_click_config);
   s_settings_window = make_window((WindowHandlers){
     .load = settings_window_load, .unload = settings_window_unload}, NULL);
 
   window_stack_push(s_menu_window, false);
-  show_intro(true);
 }
 
 static void deinit(void) {

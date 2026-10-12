@@ -8,13 +8,13 @@ Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Kein Touch – reine Tas
 - 8×8 Spielfeld (64 Felder)
 - 3 Schwierigkeitsgrade: **Leicht** (6 Bomben), **Mittel** (10), **Schwer** (14)
 - Erster Klick ist immer sicher (inkl. Nachbarfelder)
-- Steuerungs-Übersicht beim Start (4 s oder Tastendruck), danach Schwierigkeitsauswahl
+- Start direkt in der Schwierigkeitsauswahl; Steuerungs-Übersicht im Menü unter „Mehr“
 - Explosions-Animation bei Bombe (Blitz, Feuerball, Druckwelle, Trümmer, „BOOM!“)
 - Sieges-Animation (Konfetti + Banner)
 - Neuer Highscore: Pokal-Animation mit rotierenden Strahlen und Funkeln
 - Highscore-Liste: Top 5 Zeiten (Sekunden) pro Schwierigkeitsgrad, dauerhaft gespeichert
 - Einstellungen: **Display immer an** (Backlight dauerhaft)
-- Spielende-Menü: *Neues Spiel* (Schwierigkeitswahl), *Nochmal*, *Beenden*
+- Nach jedem Spiel: Highscore-Liste (gespielte Stufe und neuer Eintrag markiert), danach *Nochmal* oder *Beenden* (zurück ins Hauptmenü)
 
 ## Steuerung
 
