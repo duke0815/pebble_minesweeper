@@ -39,7 +39,6 @@
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
 static const uint8_t LEVEL_MINES[NUM_LEVELS] = {6, 10, 14};
-static const char *const LEVEL_NAMES[NUM_LEVELS] = {"Leicht", "Mittel", "Schwer"};
 
 typedef enum {
   ST_READY,       // Brett leer, Minen werden beim ersten Aufdecken gelegt
@@ -50,8 +49,123 @@ typedef enum {
   ST_DONE,        // End-Menue
 } GameState;
 
+// ---------------------------------------------------------------------------
+// Texte: Deutsch bei deutscher Uhr-Sprache, sonst Englisch
+// ---------------------------------------------------------------------------
+typedef enum {
+  S_EASY,
+  S_MEDIUM,
+  S_HARD,
+  S_RETRY,
+  S_QUIT,
+  S_WON_BANNER,
+  S_TIME_FMT,
+  S_RECORD_BANNER,
+  S_RECORD_LINE_FMT,
+  S_LOST,
+  S_NEW_RECORD,
+  S_WON,
+  S_LOST_AFTER_FMT,
+  S_RANK_FMT,
+  S_KEY_HOLD,
+  S_ACT_RIGHT,
+  S_ACT_DOWN,
+  S_ACT_OPEN,
+  S_ACT_FLAG,
+  S_ACT_MENU,
+  S_PRESS_BACK,
+  S_HS_LOST,
+  S_HS_TIME_FMT,
+  S_BACKLIGHT,
+  S_ON,
+  S_OFF,
+  S_HDR_NEW,
+  S_HDR_MORE,
+  S_LEVEL_SUB_FMT,
+  S_HIGHSCORES,
+  S_SETTINGS,
+  S_CONTROLS,
+  S_COUNT,
+} StrId;
+
+static const char *const STR_DE[S_COUNT] = {
+  "Leicht",
+  "Mittel",
+  "Schwer",
+  "Nochmal",
+  "Beenden",
+  "GEWONNEN!",
+  "Zeit: %s",
+  "NEUER REKORD!",
+  "%s  -  Platz %d  -  %s",
+  "Verloren!",
+  "Neuer Rekord!",
+  "Gewonnen!",
+  "%s - nach %s",
+  "Platz %d - %s",
+  "... halten",
+  "nach rechts",
+  "nach unten",
+  "Feld öffnen",
+  "Fähnchen",
+  "Menü",
+  "Taste drücken für zurück",
+  "Verloren - Taste: weiter",
+  "Zeit: %s - Taste: weiter",
+  "Display immer an",
+  "AN",
+  "AUS",
+  "Neues Spiel - Schwierigkeit",
+  "Mehr",
+  "%d Bomben | Rekord %s",
+  "Highscores",
+  "Einstellungen",
+  "Steuerung",
+};
+
+static const char *const STR_EN[S_COUNT] = {
+  "Easy",
+  "Medium",
+  "Hard",
+  "Play again",
+  "Quit",
+  "YOU WIN!",
+  "Time: %s",
+  "NEW RECORD!",
+  "%s  -  Rank %d  -  %s",
+  "Game over!",
+  "New record!",
+  "You win!",
+  "%s - after %s",
+  "Rank %d - %s",
+  "... hold",
+  "move right",
+  "move down",
+  "open cell",
+  "flag",
+  "menu",
+  "Press any button",
+  "Game over - press a key",
+  "Time: %s - press a key",
+  "Backlight always on",
+  "ON",
+  "OFF",
+  "New game - difficulty",
+  "More",
+  "%d mines | Best %s",
+  "Highscores",
+  "Settings",
+  "Controls",
+};
+
+static bool s_german;
+
+static const char *T(StrId id) {
+  return s_german ? STR_DE[id] : STR_EN[id];
+}
+
 typedef enum { END_RETRY = 0, END_QUIT, END_COUNT } EndOption;
-static const char *const END_LABELS[END_COUNT] = {"Nochmal", "Beenden"};
+static const StrId END_LABELS[END_COUNT] = {S_RETRY, S_QUIT};
 
 // ---------------------------------------------------------------------------
 // Zustand
@@ -538,7 +652,7 @@ static void draw_header(GContext *ctx, GRect b) {
   graphics_draw_text(ctx, buf, f, GRect(2 * r + 9, ty, 40, th), GTextOverflowModeFill, GTextAlignmentLeft, NULL);
 
   graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorIcterine, GColorWhite));
-  graphics_draw_text(ctx, LEVEL_NAMES[s_level], f, GRect(0, ty, b.size.w, th), GTextOverflowModeFill,
+  graphics_draw_text(ctx, T(S_EASY + s_level), f, GRect(0, ty, b.size.w, th), GTextOverflowModeFill,
                      GTextAlignmentCenter, NULL);
 
   fmt_time(buf, sizeof(buf), current_seconds());
@@ -705,11 +819,11 @@ static void draw_win_anim(GContext *ctx, GRect b) {
     GFont tf = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_28_BOLD : FONT_KEY_GOTHIC_24_BOLD);
     GFont sf = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
     graphics_context_set_text_color(ctx, GColorWhite);
-    graphics_draw_text(ctx, "GEWONNEN!", tf, GRect(br.origin.x, br.origin.y + 2, br.size.w, bh / 2 + 6),
+    graphics_draw_text(ctx, T(S_WON_BANNER), tf, GRect(br.origin.x, br.origin.y + 2, br.size.w, bh / 2 + 6),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
     char tb[16], buf[32];
     fmt_time(tb, sizeof(tb), s_seconds);
-    snprintf(buf, sizeof(buf), "Zeit: %s", tb);
+    snprintf(buf, sizeof(buf), T(S_TIME_FMT), tb);
     graphics_draw_text(ctx, buf, sf, GRect(br.origin.x, br.origin.y + bh / 2 + (s_big ? 6 : 4), br.size.w, bh / 2),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
@@ -771,13 +885,13 @@ static void draw_record_anim(GContext *ctx, GRect b) {
   GFont tf = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_28_BOLD : FONT_KEY_GOTHIC_24_BOLD);
   GFont sf = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
   if ((f >= 4) && (f >= 20 || (f & 2))) {
-    draw_text_shadow(ctx, "NEUER REKORD!", tf, s_big ? 28 : 24, b, s_big ? 22 : 16, 0,
+    draw_text_shadow(ctx, T(S_RECORD_BANNER), tf, s_big ? 28 : 24, b, s_big ? 22 : 16, 0,
                      PBL_IF_COLOR_ELSE(GColorYellow, GColorWhite), GColorBlack);
   }
   if (f >= 14) {
     char tb[16], buf[64];
     fmt_time(tb, sizeof(tb), s_seconds);
-    snprintf(buf, sizeof(buf), "%s  -  Platz %d  -  %s", LEVEL_NAMES[s_level], s_rank + 1, tb);
+    snprintf(buf, sizeof(buf), T(S_RECORD_LINE_FMT), T(S_EASY + s_level), s_rank + 1, tb);
     draw_text_shadow(ctx, buf, s_big ? sf : fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD), s_big ? 24 : 14, b,
                      b.size.h - (s_big ? 20 : 14), 0, GColorWhite, GColorBlack);
   }
@@ -799,7 +913,7 @@ static void draw_end_panel(GContext *ctx, GRect b) {
   GFont sf = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
   GFont of = fonts_get_system_font(s_big ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
 
-  const char *title = s_lost ? "Verloren!" : (s_rank >= 0 ? "Neuer Rekord!" : "Gewonnen!");
+  const char *title = s_lost ? T(S_LOST) : (s_rank >= 0 ? T(S_NEW_RECORD) : T(S_WON));
   GColor tcol = s_lost ? PBL_IF_COLOR_ELSE(GColorRed, GColorBlack)
                        : PBL_IF_COLOR_ELSE(GColorIslamicGreen, GColorBlack);
   int tx = p.origin.x;
@@ -823,11 +937,11 @@ static void draw_end_panel(GContext *ctx, GRect b) {
   char tb[16], buf[48];
   fmt_time(tb, sizeof(tb), s_seconds);
   if (s_lost) {
-    snprintf(buf, sizeof(buf), "%s - nach %s", LEVEL_NAMES[s_level], tb);
+    snprintf(buf, sizeof(buf), T(S_LOST_AFTER_FMT), T(S_EASY + s_level), tb);
   } else if (s_rank >= 0) {
-    snprintf(buf, sizeof(buf), "Platz %d - %s", s_rank + 1, tb);
+    snprintf(buf, sizeof(buf), T(S_RANK_FMT), s_rank + 1, tb);
   } else {
-    snprintf(buf, sizeof(buf), "%s - %s", LEVEL_NAMES[s_level], tb);
+    snprintf(buf, sizeof(buf), "%s - %s", T(S_EASY + s_level), tb);
   }
   graphics_context_set_text_color(ctx, GColorBlack);
   graphics_draw_text(ctx, buf, sf, GRect(tx, p.origin.y + th / 2 + (s_big ? 2 : 1), tw, th / 2),
@@ -841,7 +955,7 @@ static void draw_end_panel(GContext *ctx, GRect b) {
       graphics_fill_rect(ctx, r, 4, GCornersAll);
     }
     graphics_context_set_text_color(ctx, sel ? GColorWhite : GColorBlack);
-    graphics_draw_text(ctx, END_LABELS[i], of, GRect(r.origin.x, r.origin.y - (s_big ? 3 : 2), r.size.w, rh),
+    graphics_draw_text(ctx, T(END_LABELS[i]), of, GRect(r.origin.x, r.origin.y - (s_big ? 3 : 2), r.size.w, rh),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 }
@@ -980,8 +1094,8 @@ static void intro_update_proc(Layer *layer, GContext *ctx) {
                      GTextAlignmentCenter, NULL);
   y += big ? 30 : 24;
 
-  static const char *const keys[] = {"UP", "DOWN", "SELECT", "... halten", "BACK"};
-  static const char *const acts[] = {"nach rechts", "nach unten", "Feld öffnen", "Fähnchen", "Menü"};
+  const char *const keys[] = {"UP", "DOWN", "SELECT", T(S_KEY_HOLD), "BACK"};
+  const char *const acts[] = {T(S_ACT_RIGHT), T(S_ACT_DOWN), T(S_ACT_OPEN), T(S_ACT_FLAG), T(S_ACT_MENU)};
   GFont kf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
   GFont af = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
   int lh = big ? 24 : 18;
@@ -1002,7 +1116,7 @@ static void intro_update_proc(Layer *layer, GContext *ctx) {
 
   GFont hf = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
-  graphics_draw_text(ctx, "Taste drücken für zurück", hf,
+  graphics_draw_text(ctx, T(S_PRESS_BACK), hf,
                      GRect(0, b.size.h - 20, b.size.w, 18), GTextOverflowModeFill, GTextAlignmentCenter, NULL);
 }
 
@@ -1048,7 +1162,7 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
 
   GFont hf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
   GFont vf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
-  int rw = big ? 22 : 16;
+  int rw = big ? 22 : 13;
   int cw = (b.size.w - rw) / NUM_LEVELS;
   int lh = big ? 26 : 18;
   int y = th + 4;
@@ -1062,7 +1176,8 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
     }
     graphics_context_set_text_color(ctx, played ? PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite)
                                                  : PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorBlack));
-    graphics_draw_text(ctx, LEVEL_NAMES[l], hf, GRect(rw + l * cw, y, cw, lh), GTextOverflowModeFill,
+    // kleine Displays: normale statt fetter Schrift, damit "Medium" in die Spalte passt
+    graphics_draw_text(ctx, T(S_EASY + l), big ? hf : vf, GRect(rw + l * cw, y, cw, lh), GTextOverflowModeFill,
                        GTextAlignmentCenter, NULL);
   }
   y += lh;
@@ -1103,8 +1218,8 @@ static void hs_update_proc(Layer *layer, GContext *ctx) {
     // Ergebnis der Runde + Hinweis
     char tb[16], buf[48];
     fmt_time(tb, sizeof(tb), s_seconds);
-    if (s_lost) snprintf(buf, sizeof(buf), "Verloren - Taste: weiter");
-    else snprintf(buf, sizeof(buf), "Deine Zeit: %s - Taste: weiter", tb);
+    if (s_lost) snprintf(buf, sizeof(buf), "%s", T(S_HS_LOST));
+    else snprintf(buf, sizeof(buf), T(S_HS_TIME_FMT), tb);
     int fh = big ? 22 : 18;
     graphics_context_set_fill_color(ctx, s_lost ? PBL_IF_COLOR_ELSE(GColorRed, GColorBlack)
                                                 : PBL_IF_COLOR_ELSE(GColorIslamicGreen, GColorBlack));
@@ -1145,7 +1260,7 @@ static uint16_t set_num_rows(MenuLayer *m, uint16_t section, void *ctx) {
 }
 
 static void set_draw_row(GContext *ctx, const Layer *cell, MenuIndex *idx, void *data) {
-  menu_cell_basic_draw(ctx, cell, "Display immer an", s_backlight ? "AN" : "AUS", NULL);
+  menu_cell_basic_draw(ctx, cell, T(S_BACKLIGHT), s_backlight ? T(S_ON) : T(S_OFF), NULL);
 }
 
 static void set_select(MenuLayer *m, MenuIndex *idx, void *data) {
@@ -1192,7 +1307,7 @@ static int16_t mm_header_height(MenuLayer *m, uint16_t section, void *ctx) {
 }
 
 static void mm_draw_header(GContext *ctx, const Layer *cell, uint16_t section, void *data) {
-  menu_cell_basic_header_draw(ctx, cell, section == 0 ? "Neues Spiel - Schwierigkeit" : "Mehr");
+  menu_cell_basic_header_draw(ctx, cell, section == 0 ? T(S_HDR_NEW) : T(S_HDR_MORE));
 }
 
 static void mm_draw_row(GContext *ctx, const Layer *cell, MenuIndex *idx, void *data) {
@@ -1202,11 +1317,10 @@ static void mm_draw_row(GContext *ctx, const Layer *cell, MenuIndex *idx, void *
     int l = idx->row;
     if (s_hs[l][0] == HS_EMPTY) snprintf(tb, sizeof(tb), "--");
     else fmt_time(tb, sizeof(tb), s_hs[l][0]);
-    snprintf(sub, sizeof(sub), "%d Bomben | Rekord %s", LEVEL_MINES[l], tb);
-    menu_cell_basic_draw(ctx, cell, LEVEL_NAMES[l], sub, NULL);
+    snprintf(sub, sizeof(sub), T(S_LEVEL_SUB_FMT), LEVEL_MINES[l], tb);
+    menu_cell_basic_draw(ctx, cell, T(S_EASY + l), sub, NULL);
   } else {
-    static const char *const titles[] = {"Highscores", "Einstellungen", "Steuerung"};
-    menu_cell_basic_draw(ctx, cell, titles[idx->row], NULL, NULL);
+    menu_cell_basic_draw(ctx, cell, T(S_HIGHSCORES + idx->row), NULL, NULL);
   }
 }
 
@@ -1263,6 +1377,7 @@ static Window *make_window(WindowHandlers handlers, ClickConfigProvider ccp) {
 
 static void init(void) {
   srand(time(NULL));
+  s_german = strncmp(i18n_get_system_locale(), "de", 2) == 0;
   load_data();
   apply_backlight();
 

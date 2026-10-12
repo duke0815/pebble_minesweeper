@@ -14,6 +14,7 @@ Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Kein Touch – reine Tas
 - Neuer Highscore: Pokal-Animation mit rotierenden Strahlen und Funkeln
 - Highscore-Liste: Top 5 Zeiten (Sekunden) pro Schwierigkeitsgrad, dauerhaft gespeichert
 - Einstellungen: **Display immer an** (Backlight dauerhaft)
+- Sprache automatisch nach Uhr-Einstellung: Deutsch bei deutscher Uhr, sonst Englisch
 - Nach jedem Spiel: Highscore-Liste (gespielte Stufe und neuer Eintrag markiert), danach *Nochmal* oder *Beenden* (zurück ins Hauptmenü)
 
 ## Steuerung
@@ -37,3 +38,7 @@ pebble sdk install latest
 pebble build
 pebble install --emulator emery     # oder: pebble install --phone <IP>
 ```
+
+## Store
+
+Texte und Grafiken für die Veröffentlichung liegen in [`store/`](store/STORE_LISTING.md).
