@@ -97,7 +97,8 @@ const jobs = [
         <h1 style="font-size:92px; margin-top:28px;">Sweep mines<br>with a <span class="accent">tap.</span></h1>
         <p class="sub" style="font-size:32px; margin-top:22px;">Tap to open, hold to flag, zoom in with the top bar.<br>Prefer buttons? UP, DOWN and SELECT work too.</p>
       </div>
-      ${watch(shot('1_gameplay.png'), 1.55, 600, 520, -4)}`) },
+      ${watch(shot('1_gameplay.png'), 1.25, 70, 520, -6)}
+      ${watch(shot('2_zoom.png'), 1.25, 560, 470, 5)}`) },
 
   // Promo 2: Animationen
   { out: 'promo_2_animations.png', w: 1080, h: 1080, html: page(1080, 1080, `
@@ -105,7 +106,7 @@ const jobs = [
         <h1 style="font-size:92px;">Big <span style="color:#ff6a5a">BOOM.</span><br>Bigger <span class="accent">trophies.</span></h1>
         <p class="sub" style="font-size:32px; margin-top:22px;">Explosion, confetti and a trophy animation<br>every time you set a new record.</p>
       </div>
-      ${watch(shot('2_boom.png'), 1.25, 70, 520, -6)}
+      ${watch(shot('3_boom.png'), 1.25, 70, 520, -6)}
       ${watch(shot('4_new_record.png'), 1.25, 560, 470, 5)}`) },
 
   // Promo 3: Schwierigkeit & Highscores
@@ -114,7 +115,7 @@ const jobs = [
         <h1 style="font-size:92px;">3 levels.<br><span class="accent">Beat your best.</span></h1>
         <p class="sub" style="font-size:32px; margin-top:22px;">Easy, Medium, Hard - with a top-5 time list<br>for every difficulty.</p>
       </div>
-      ${watch(shot('6_menu.png'), 1.25, 70, 500, -5)}
+      ${watch(shot('7_menu.png'), 1.25, 70, 500, -5)}
       ${watch(shot('5_highscores.png'), 1.25, 560, 520, 5)}`) },
 
   // Store-Icons
