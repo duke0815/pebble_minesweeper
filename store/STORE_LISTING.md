@@ -14,18 +14,22 @@ Games
 
 ## Short description (Untertitel / Kurzbeschreibung)
 
-The classic mine-clearing puzzle for Pebble Time 2 – two buttons, no touch, real highscores.
+The classic mine-clearing puzzle for Pebble Time 2 – play by touch or buttons, zoom in, chase your best times.
 
 ## Description
 
 Minesweeper, rebuilt from scratch for Pebble Time 2.
 
-Clear an 8×8 minefield using nothing but the buttons on your watch. No touch, no fiddly cursor, no phone needed:
+Clear an 8×8 minefield right on your wrist – with your finger or with the buttons.
 
-• UP moves the cursor across, DOWN moves it down. Both wrap around the edge.
-• Hold UP or DOWN to move the cursor continuously.
-• SELECT opens a cell. Press it on a number to open every neighbor once the matching flags are in place.
-• Hold SELECT to plant or remove a flag.
+TOUCH (Pebble Time 2)
+• Tap a cell to open it, hold it to plant or remove a flag.
+• Tap the top bar to zoom in for bigger cells, drag with one finger to move around, tap the top bar again to zoom out.
+
+BUTTONS (all models)
+• UP moves the cursor across, DOWN moves it down. Both wrap around the edge; hold to move continuously.
+• SELECT opens a cell, hold SELECT to plant or remove a flag.
+• Open a number again to clear all its neighbors once the matching flags are in place.
 
 FEATURES
 • Three difficulty levels: Easy (6 mines), Medium (10), Hard (14)
@@ -34,13 +38,14 @@ FEATURES
 • A big BOOM when you hit a mine, confetti when you win, and an animated trophy for every new record
 • "Backlight always on" option in Settings, for long games in the dark
 • English and German, picked automatically from your watch language
+• Zoom mode with one-finger panning on the Pebble Time 2 touchscreen
 • Runs entirely on the watch, no phone connection or companion app needed
 
 Built for the color display of Pebble Time 2, and also runs on Pebble Time, Pebble 2 and Pebble 2 Duo.
 
 ## Release notes (v1.0.0)
 
-First release: 8×8 Minesweeper with three difficulty levels, top-5 highscores per level, explosion, victory and record animations, and an always-on backlight option.
+First release: 8×8 Minesweeper with touch controls and zoom on Pebble Time 2, button controls on all models, three difficulty levels, top-5 highscores per level, explosion, victory and record animations, and an always-on backlight option.
 
 ## Keywords / Tags
 

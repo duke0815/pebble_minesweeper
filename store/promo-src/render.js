@@ -86,7 +86,7 @@ const jobs = [
           ${mineSvg(56, true)}<span class="pill" style="font-size:14px">for Pebble Time 2</span>
         </div>
         <h1 style="font-size:56px;">Mine<span class="accent">sweeper</span></h1>
-        <p class="sub" style="font-size:19px; margin-top:12px;">The classic puzzle on your wrist.<br>Two buttons. No touch. Pure skill.</p>
+        <p class="sub" style="font-size:19px; margin-top:12px;">The classic puzzle on your wrist.<br>Tap, hold, zoom &ndash; or use the buttons.</p>
       </div>
       ${watch(shot('1_gameplay.png'), 1.0, 452, 34, 6)}`) },
 
@@ -94,8 +94,8 @@ const jobs = [
   { out: 'promo_1_gameplay.png', w: 1080, h: 1080, html: page(1080, 1080, `
       <div class="txt" style="position:absolute; left:80px; top:90px; width:920px;">
         <span class="pill" style="font-size:24px">Minesweeper for Pebble Time 2</span>
-        <h1 style="font-size:92px; margin-top:28px;">Sweep mines<br>with <span class="accent">two buttons.</span></h1>
-        <p class="sub" style="font-size:32px; margin-top:22px;">UP moves across, DOWN moves down.<br>SELECT opens, hold SELECT to flag.</p>
+        <h1 style="font-size:92px; margin-top:28px;">Sweep mines<br>with a <span class="accent">tap.</span></h1>
+        <p class="sub" style="font-size:32px; margin-top:22px;">Tap to open, hold to flag, zoom in with the top bar.<br>Prefer buttons? UP, DOWN and SELECT work too.</p>
       </div>
       ${watch(shot('1_gameplay.png'), 1.55, 600, 520, -4)}`) },
 

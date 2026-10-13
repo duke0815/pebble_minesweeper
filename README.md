@@ -1,7 +1,7 @@
 # Minesweeper für Pebble Time 2
 
 Minesweeper-Klon für die **Pebble Time 2** (Plattform `emery`, 200×228, Farbe).
-Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Kein Touch – reine Tastensteuerung.
+Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Auf der Time 2 per Touch oder Tasten spielbar, auf den anderen Modellen per Tasten.
 
 ## Features
 
@@ -27,6 +27,18 @@ Läuft zusätzlich auf `basalt`, `diorite` und `flint`. Kein Touch – reine Tas
 | SELECT | Feld öffnen (auf einer Zahl: Nachbarn öffnen, wenn Fähnchen passen) |
 | SELECT halten | Fähnchen setzen / entfernen |
 | BACK | zurück ins Menü |
+
+### Touch (nur Pebble Time 2)
+
+| Geste | Aktion |
+|---|---|
+| Feld antippen | Feld öffnen |
+| Feld halten | Fähnchen setzen / entfernen |
+| Kopfzeile antippen (Lupe) | Zoom an / aus |
+| Ziehen (im Zoom) | Ausschnitt verschieben |
+| Highscore-Liste / Steuerung antippen | weiter / zurück |
+
+Mehrfinger-Gesten (Pinch-Zoom) unterstützt die Pebble-Touch-API nicht; sie liefert nur einen Berührungspunkt.
 
 ## Bauen
 

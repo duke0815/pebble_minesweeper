@@ -1,13 +1,20 @@
 /*
  * Minesweeper fuer Pebble Time 2 (emery) – laeuft auch auf basalt/diorite/flint.
  *
- * Steuerung (kein Touch):
+ * Tasten:
  *   UP                   Cursor nach rechts (horizontal, mit Umbruch in der Zeile)
  *   DOWN                 Cursor nach unten (vertikal, mit Umbruch in der Spalte)
  *   UP / DOWN halten     Cursor laeuft automatisch weiter
  *   SELECT               Feld aufdecken (auf Zahl: Nachbarn aufdecken)
  *   SELECT halten        Faehnchen setzen / entfernen
  *   BACK                 zurueck ins Menue
+ *
+ * Touch (Pebble Time 2, PBL_TOUCH):
+ *   Feld tippen          aufdecken
+ *   Feld halten          Faehnchen setzen / entfernen
+ *   Kopfzeile tippen     Zoom an / aus
+ *   Ziehen               im Zoom den Ausschnitt verschieben
+ *   (Pinch-Zoom ist nicht moeglich: die Touch-API liefert nur einen Beruehrungspunkt.)
  *
  * Nach jedem Spiel: Animation -> Highscore-Liste -> End-Menue (Nochmal / Beenden = Hauptmenue).
  */
@@ -35,6 +42,8 @@
 #define ANIM_SKIP_AFTER 12
 #define CURSOR_REPEAT_MS 250
 #define NUM_PARTICLES 40
+#define LONG_PRESS_MS 450
+#define TOUCH_SLOP 8
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
@@ -85,6 +94,12 @@ typedef enum {
   S_HIGHSCORES,
   S_SETTINGS,
   S_CONTROLS,
+  S_TOUCH_TAP,
+  S_TOUCH_HOLD,
+  S_TOUCH_TOPBAR,
+  S_TOUCH_DRAG,
+  S_ACT_ZOOM,
+  S_ACT_PAN,
   S_COUNT,
 } StrId;
 
@@ -121,6 +136,12 @@ static const char *const STR_DE[S_COUNT] = {
   "Highscores",
   "Einstellungen",
   "Steuerung",
+  "Tippen",
+  "Halten",
+  "Kopfzeile",
+  "Ziehen",
+  "Zoom an/aus",
+  "verschieben",
 };
 
 static const char *const STR_EN[S_COUNT] = {
@@ -156,6 +177,12 @@ static const char *const STR_EN[S_COUNT] = {
   "Highscores",
   "Settings",
   "Controls",
+  "Tap",
+  "Hold",
+  "Top bar",
+  "Drag",
+  "zoom in/out",
+  "pan",
 };
 
 static bool s_german;
@@ -190,6 +217,20 @@ static int s_anim_frame;
 // Layout
 static int s_cs, s_ox, s_oy, s_hh;
 static bool s_big;
+
+// Zoom (nur mit Touchscreen): groessere Felder, Ausschnitt per Ziehen verschiebbar
+static bool s_touch;          // Touchscreen vorhanden und aktiv
+static bool s_zoom;
+static int s_zs;              // Feldgroesse im Zoom
+static int s_vx, s_vy;        // Ausschnitt-Versatz im gezoomten Brett (Pixel)
+
+#ifdef PBL_TOUCH
+// Touch-Gesten
+static bool s_touch_down, s_touch_dragged, s_touch_long_fired;
+static GPoint s_touch_start, s_touch_last;
+static int s_touch_cell, s_cursor_before_touch;
+static AppTimer *s_long_timer;
+#endif
 
 // Partikel (Explosion / Konfetti)
 static int16_t s_px[NUM_PARTICLES], s_py[NUM_PARTICLES], s_pvx[NUM_PARTICLES], s_pvy[NUM_PARTICLES];
@@ -440,6 +481,7 @@ static void place_mines(int safe) {
 }
 
 static void anim_tick(void *data);
+static GRect cell_rect(int i);
 
 static void start_anim(GameState st) {
   stop_anim_timer();
@@ -450,9 +492,9 @@ static void start_anim(GameState st) {
 }
 
 static void init_debris(void) {
-  int c = s_cs / 2;
-  int cx = s_ox + (s_exploded % GRID_W) * s_cs + c;
-  int cy = s_oy + (s_exploded / GRID_W) * s_cs + c;
+  GRect er = cell_rect(s_exploded);
+  int cx = er.origin.x + er.size.w / 2;
+  int cy = er.origin.y + er.size.h / 2;
   for (int i = 0; i < NUM_PARTICLES; i++) {
     int32_t a = i * TRIG_MAX_ANGLE / NUM_PARTICLES + rand() % (TRIG_MAX_ANGLE / 32);
     int speed = 40 + rand() % 60;  // 1/16 px pro Frame
@@ -628,10 +670,79 @@ static void compute_layout(GRect b) {
   s_cs = cw < ch ? cw : ch;
   s_ox = (b.size.w - s_cs * GRID_W) / 2;
   s_oy = s_hh + (b.size.h - s_hh - s_cs * GRID_H) / 2;
+  s_zs = s_cs * 8 / 5;  // Zoom 1,6x: auf der Time 2 sind dann 5x5 Felder sichtbar
 }
 
+static int cur_cs(void) {
+  return s_zoom ? s_zs : s_cs;
+}
+
+static int view_size(void) {
+  return s_cs * GRID_W;  // sichtbare Brettflaeche (quadratisch)
+}
+
+static void clamp_view(void) {
+  int max = s_zs * GRID_W - view_size();
+  if (s_vx < 0) s_vx = 0;
+  if (s_vy < 0) s_vy = 0;
+  if (s_vx > max) s_vx = max;
+  if (s_vy > max) s_vy = max;
+}
+
+// Bildschirm-Rechteck eines Feldes (beruecksichtigt Zoom und Ausschnitt)
 static GRect cell_rect(int i) {
-  return GRect(s_ox + (i % GRID_W) * s_cs, s_oy + (i / GRID_W) * s_cs, s_cs, s_cs);
+  int cs = cur_cs();
+  int vx = s_zoom ? s_vx : 0, vy = s_zoom ? s_vy : 0;
+  return GRect(s_ox + (i % GRID_W) * cs - vx, s_oy + (i / GRID_W) * cs - vy, cs, cs);
+}
+
+#ifdef PBL_TOUCH
+// Feld unter einem Bildschirmpunkt oder -1
+static int cell_at(GPoint p) {
+  int v = view_size();
+  if (p.x < s_ox || p.y < s_oy || p.x >= s_ox + v || p.y >= s_oy + v) return -1;
+  int cs = cur_cs();
+  int x = (p.x - s_ox + (s_zoom ? s_vx : 0)) / cs;
+  int y = (p.y - s_oy + (s_zoom ? s_vy : 0)) / cs;
+  if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return -1;
+  return y * GRID_W + x;
+}
+
+#endif
+
+// Im Zoom den Ausschnitt so verschieben, dass der Cursor sichtbar ist
+static void ensure_cursor_visible(void) {
+  if (!s_zoom) return;
+  int v = view_size();
+  int cx = (s_cursor % GRID_W) * s_zs, cy = (s_cursor / GRID_W) * s_zs;
+  if (cx < s_vx) s_vx = cx;
+  if (cx + s_zs > s_vx + v) s_vx = cx + s_zs - v;
+  if (cy < s_vy) s_vy = cy;
+  if (cy + s_zs > s_vy + v) s_vy = cy + s_zs - v;
+  clamp_view();
+}
+
+#ifdef PBL_TOUCH
+static void toggle_zoom(void) {
+  s_zoom = !s_zoom;
+  if (s_zoom) {
+    // auf den Cursor zentrieren
+    int v = view_size();
+    s_vx = (s_cursor % GRID_W) * s_zs + s_zs / 2 - v / 2;
+    s_vy = (s_cursor / GRID_W) * s_zs + s_zs / 2 - v / 2;
+    clamp_view();
+  }
+}
+#endif
+
+static void draw_magnifier(GContext *ctx, GPoint c, bool minus) {
+  graphics_context_set_stroke_color(ctx, GColorWhite);
+  graphics_context_set_stroke_width(ctx, 2);
+  graphics_draw_circle(ctx, c, 6);
+  graphics_draw_line(ctx, GPoint(c.x + 5, c.y + 5), GPoint(c.x + 9, c.y + 9));
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_line(ctx, GPoint(c.x - 3, c.y), GPoint(c.x + 3, c.y));
+  if (!minus) graphics_draw_line(ctx, GPoint(c.x, c.y - 3), GPoint(c.x, c.y + 3));
 }
 
 static void draw_header(GContext *ctx, GRect b) {
@@ -659,6 +770,9 @@ static void draw_header(GContext *ctx, GRect b) {
   graphics_context_set_text_color(ctx, GColorWhite);
   graphics_draw_text(ctx, buf, f, GRect(b.size.w - 60, ty, 56, th), GTextOverflowModeFill,
                      GTextAlignmentRight, NULL);
+
+  // Lupe: Kopfzeile antippen = Zoom an/aus
+  if (s_touch) draw_magnifier(ctx, GPoint(b.size.w - 62, s_hh / 2 - 1), s_zoom);
 }
 
 static void draw_closed(GContext *ctx, GRect r) {
@@ -692,43 +806,50 @@ static void draw_open(GContext *ctx, GRect r, GColor bg) {
 }
 
 static void draw_board(GContext *ctx) {
-  GFont nf = fonts_get_system_font(s_cs >= 24 ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
-  int fs = s_cs >= 24 ? 24 : 18;
+  int cs = cur_cs();
+  GFont nf = fonts_get_system_font(cs >= 36 ? FONT_KEY_GOTHIC_28_BOLD
+                                   : cs >= 24 ? FONT_KEY_GOTHIC_24_BOLD : FONT_KEY_GOTHIC_18_BOLD);
+  int fs = cs >= 36 ? 28 : cs >= 24 ? 24 : 18;
+  int v = view_size();
+  GRect view = GRect(s_ox, s_oy, v, v);
   bool show_all = s_lost;
   GColor flag_pole = PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite);
 
   for (int i = 0; i < CELLS; i++) {
     GRect r = cell_rect(i);
-    GPoint c = GPoint(r.origin.x + s_cs / 2, r.origin.y + s_cs / 2);
-    uint8_t v = s_cells[i];
-    int mr = s_cs / 4;
+    // im Zoom nur sichtbare Felder zeichnen
+    if (r.origin.x >= view.origin.x + v || r.origin.y >= view.origin.y + v ||
+        r.origin.x + cs <= view.origin.x || r.origin.y + cs <= view.origin.y) continue;
+    GPoint c = GPoint(r.origin.x + cs / 2, r.origin.y + cs / 2);
+    uint8_t cv = s_cells[i];
+    int mr = cs / 4;
 
     if (i == s_exploded) {
       draw_open(ctx, r, PBL_IF_COLOR_ELSE(GColorRed, GColorWhite));
       draw_mine(ctx, c, mr);
-    } else if (v & C_OPEN) {
+    } else if (cv & C_OPEN) {
       draw_open(ctx, r, GColorWhite);
-      int n = v & C_COUNT;
+      int n = cv & C_COUNT;
       if (n > 0) {
         char t[2] = {'0' + n, 0};
         graphics_context_set_text_color(ctx, num_color(n));
-        graphics_draw_text(ctx, t, nf, GRect(r.origin.x, r.origin.y + (s_cs - fs) / 2 - fs / 6, s_cs, fs + 4),
+        graphics_draw_text(ctx, t, nf, GRect(r.origin.x, r.origin.y + (cs - fs) / 2 - fs / 6, cs, fs + 4),
                            GTextOverflowModeFill, GTextAlignmentCenter, NULL);
       }
-    } else if (show_all && (v & C_MINE) && !(v & C_FLAG)) {
+    } else if (show_all && (cv & C_MINE) && !(cv & C_FLAG)) {
       draw_open(ctx, r, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
       draw_mine(ctx, c, mr);
-    } else if (v & C_FLAG) {
+    } else if (cv & C_FLAG) {
       draw_closed(ctx, r);
       draw_flag(ctx, r, flag_pole);
-      if (show_all && !(v & C_MINE)) {
+      if (show_all && !(cv & C_MINE)) {
         // falsch gesetztes Faehnchen
         graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorBlack, GColorWhite));
         graphics_context_set_stroke_width(ctx, 3);
         graphics_draw_line(ctx, GPoint(r.origin.x + 4, r.origin.y + 4),
-                           GPoint(r.origin.x + s_cs - 5, r.origin.y + s_cs - 5));
-        graphics_draw_line(ctx, GPoint(r.origin.x + s_cs - 5, r.origin.y + 4),
-                           GPoint(r.origin.x + 4, r.origin.y + s_cs - 5));
+                           GPoint(r.origin.x + cs - 5, r.origin.y + cs - 5));
+        graphics_draw_line(ctx, GPoint(r.origin.x + cs - 5, r.origin.y + 4),
+                           GPoint(r.origin.x + 4, r.origin.y + cs - 5));
         graphics_context_set_stroke_width(ctx, 1);
       }
     } else {
@@ -746,6 +867,14 @@ static void draw_board(GContext *ctx) {
     graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorYellow, GColorWhite));
     graphics_draw_rect(ctx, grect_inset(r, GEdgeInsets(1)));
     graphics_draw_rect(ctx, grect_inset(r, GEdgeInsets(2)));
+  }
+
+  // Im Zoom: Positionsbalken unten und rechts
+  if (s_zoom) {
+    int full = s_zs * GRID_W;
+    graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorOrange, GColorBlack));
+    graphics_fill_rect(ctx, GRect(s_ox + s_vx * v / full, s_oy + v - 3, v * v / full, 3), 1, GCornersAll);
+    graphics_fill_rect(ctx, GRect(s_ox + v - 3, s_oy + s_vy * v / full, 3, v * v / full), 1, GCornersAll);
   }
 }
 
@@ -767,7 +896,7 @@ static void draw_lose_anim(GContext *ctx, GRect b) {
   }
   // Feuerball
   if (t < 20) {
-    int R = s_cs * 2;
+    int R = cur_cs() * 2;
     int r = t < 8 ? R * (t + 1) / 8 : R * (20 - t) / 12;
     graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorOrange, GColorBlack));
     graphics_fill_circle(ctx, c, r);
@@ -780,7 +909,7 @@ static void draw_lose_anim(GContext *ctx, GRect b) {
   if (t < 18) {
     graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
     graphics_context_set_stroke_width(ctx, 3);
-    graphics_draw_circle(ctx, c, (t + 1) * s_cs * 2 / 3);
+    graphics_draw_circle(ctx, c, (t + 1) * cur_cs() * 2 / 3);
     graphics_context_set_stroke_width(ctx, 1);
   }
   // BOOM!
@@ -897,12 +1026,26 @@ static void draw_record_anim(GContext *ctx, GRect b) {
   }
 }
 
-static void draw_end_panel(GContext *ctx, GRect b) {
+static GRect end_panel_rect(GRect b) {
   int rh = s_big ? 30 : 24;
   int th = s_big ? 54 : 42;
   int pw = b.size.w - (s_big ? 24 : 12);
   int ph = th + END_COUNT * rh + 8;
-  GRect p = GRect((b.size.w - pw) / 2, (b.size.h - ph) / 2 + s_hh / 2, pw, ph);
+  return GRect((b.size.w - pw) / 2, (b.size.h - ph) / 2 + s_hh / 2, pw, ph);
+}
+
+static GRect end_option_rect(GRect b, int i) {
+  GRect p = end_panel_rect(b);
+  int rh = s_big ? 30 : 24;
+  int th = s_big ? 54 : 42;
+  return GRect(p.origin.x + 4, p.origin.y + th + i * rh, p.size.w - 8, rh - 2);
+}
+
+static void draw_end_panel(GContext *ctx, GRect b) {
+  int rh = s_big ? 30 : 24;
+  int th = s_big ? 54 : 42;
+  GRect p = end_panel_rect(b);
+  int pw = p.size.w;
 
   graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, grect_inset(p, GEdgeInsets(-2)), 6, GCornersAll);
@@ -948,7 +1091,7 @@ static void draw_end_panel(GContext *ctx, GRect b) {
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 
   for (int i = 0; i < END_COUNT; i++) {
-    GRect r = GRect(p.origin.x + 4, p.origin.y + th + i * rh, pw - 8, rh - 2);
+    GRect r = end_option_rect(b, i);
     bool sel = (i == s_end_sel);
     if (sel) {
       graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorBlack));
@@ -977,8 +1120,15 @@ static void game_update_proc(Layer *layer, GContext *ctx) {
 
   graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
   graphics_fill_rect(ctx, b, 0, GCornerNone);
-  draw_header(ctx, b);
   draw_board(ctx);
+  // Ueberstand des gezoomten Bretts abdecken
+  int v = view_size();
+  graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+  graphics_fill_rect(ctx, GRect(0, s_oy + v, b.size.w, b.size.h - s_oy - v), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, s_hh, b.size.w, s_oy - s_hh), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, s_oy, s_ox, v), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(s_ox + v, s_oy, b.size.w - s_ox - v, v), 0, GCornerNone);
+  draw_header(ctx, b);
 
   if (s_state == ST_ANIM_LOSE) draw_lose_anim(ctx, b);
   else if (s_state == ST_ANIM_WIN) draw_win_anim(ctx, b);
@@ -1004,6 +1154,7 @@ static void move_cursor(int dx, int dy) {
   int x = (s_cursor % GRID_W + dx) % GRID_W;
   int y = (s_cursor / GRID_W + dy) % GRID_H;
   s_cursor = y * GRID_W + x;
+  ensure_cursor_visible();
   layer_mark_dirty(s_game_layer);
 }
 
@@ -1049,6 +1200,99 @@ static void game_click_config(void *ctx) {
   window_long_click_subscribe(BUTTON_ID_SELECT, 400, game_select_long, NULL);
 }
 
+#ifdef PBL_TOUCH
+// ---------------------------------------------------------------------------
+// Spiel-Touch (Pebble Time 2): Tippen = oeffnen, Halten = Faehnchen,
+// Kopfzeile tippen = Zoom, Ziehen = Ausschnitt verschieben
+// ---------------------------------------------------------------------------
+static bool playing(void) {
+  return s_state == ST_READY || s_state == ST_PLAYING;
+}
+
+static void cancel_long_timer(void) {
+  if (s_long_timer) {
+    app_timer_cancel(s_long_timer);
+    s_long_timer = NULL;
+  }
+}
+
+static void long_press_fired(void *data) {
+  s_long_timer = NULL;
+  if (!s_touch_down || s_touch_dragged || s_touch_cell < 0 || !playing()) return;
+  s_cursor = s_touch_cell;
+  toggle_flag();
+  s_touch_long_fired = true;
+  layer_mark_dirty(s_game_layer);
+}
+
+static void game_touch_tap(GPoint p) {
+  if (in_anim()) { skip_anim(); return; }
+  GRect b = layer_get_bounds(s_game_layer);
+  if (s_state == ST_DONE) {
+    for (int i = 0; i < END_COUNT; i++) {
+      GRect r = end_option_rect(b, i);
+      if (grect_contains_point(&r, &p)) {
+        s_end_sel = i;
+        end_confirm();
+        return;
+      }
+    }
+    return;
+  }
+  if (p.y < s_hh) {
+    toggle_zoom();
+  } else {
+    int cell = cell_at(p);
+    if (cell < 0) return;
+    s_cursor = cell;
+    open_at_cursor();
+  }
+  layer_mark_dirty(s_game_layer);
+}
+
+static void game_touch(const TouchEvent *e) {
+  GPoint p = GPoint(e->x, e->y);
+  switch (e->type) {
+    case TouchEvent_Touchdown:
+      s_touch_down = true;
+      s_touch_dragged = false;
+      s_touch_long_fired = false;
+      s_touch_start = s_touch_last = p;
+      s_touch_cell = playing() ? cell_at(p) : -1;
+      cancel_long_timer();
+      if (s_touch_cell >= 0) {
+        s_cursor_before_touch = s_cursor;
+        s_cursor = s_touch_cell;  // sofort zeigen, welches Feld getroffen ist
+        s_long_timer = app_timer_register(LONG_PRESS_MS, long_press_fired, NULL);
+        layer_mark_dirty(s_game_layer);
+      }
+      break;
+    case TouchEvent_PositionUpdate:
+      if (!s_touch_down) break;
+      if (!s_touch_dragged && (ABS(p.x - s_touch_start.x) > TOUCH_SLOP || ABS(p.y - s_touch_start.y) > TOUCH_SLOP)) {
+        s_touch_dragged = true;
+        cancel_long_timer();
+        if (s_touch_cell >= 0) s_cursor = s_cursor_before_touch;  // Ziehen bewegt den Cursor nicht
+      }
+      if (s_touch_dragged && s_zoom && playing()) {
+        s_vx += s_touch_last.x - p.x;
+        s_vy += s_touch_last.y - p.y;
+        clamp_view();
+        layer_mark_dirty(s_game_layer);
+      }
+      s_touch_last = p;
+      break;
+    case TouchEvent_Liftoff:
+      if (!s_touch_down) break;
+      s_touch_down = false;
+      cancel_long_timer();
+      if (!s_touch_dragged && !s_touch_long_fired) game_touch_tap(s_touch_last);
+      break;
+  }
+}
+
+#endif  // PBL_TOUCH
+
 static void game_window_load(Window *w) {
   Layer *root = window_get_root_layer(w);
   GRect b = layer_get_bounds(root);
@@ -1060,6 +1304,10 @@ static void game_window_load(Window *w) {
 
 static void game_window_unload(Window *w) {
   stop_anim_timer();
+#ifdef PBL_TOUCH
+  cancel_long_timer();
+  s_touch_down = false;
+#endif
   tick_timer_service_unsubscribe();
   layer_destroy(s_game_layer);
   s_game_layer = NULL;
@@ -1094,14 +1342,20 @@ static void intro_update_proc(Layer *layer, GContext *ctx) {
                      GTextAlignmentCenter, NULL);
   y += big ? 30 : 24;
 
-  const char *const keys[] = {"UP", "DOWN", "SELECT", T(S_KEY_HOLD), "BACK"};
-  const char *const acts[] = {T(S_ACT_RIGHT), T(S_ACT_DOWN), T(S_ACT_OPEN), T(S_ACT_FLAG), T(S_ACT_MENU)};
-  GFont kf = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
-  GFont af = fonts_get_system_font(big ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
-  int lh = big ? 24 : 18;
+  // Mit Touchscreen: Tasten (ohne BACK) und darunter die Touch-Gesten, kompakter gesetzt
+  const char *const keys[] = {"UP", "DOWN", "SELECT", T(S_KEY_HOLD), "BACK",
+                              T(S_TOUCH_TAP), T(S_TOUCH_HOLD), T(S_TOUCH_TOPBAR), T(S_TOUCH_DRAG)};
+  const char *const acts[] = {T(S_ACT_RIGHT), T(S_ACT_DOWN), T(S_ACT_OPEN), T(S_ACT_FLAG), T(S_ACT_MENU),
+                              T(S_ACT_OPEN), T(S_ACT_FLAG), T(S_ACT_ZOOM), T(S_ACT_PAN)};
+  bool compact = s_touch;
+  GFont kf = fonts_get_system_font(big && !compact ? FONT_KEY_GOTHIC_18_BOLD : FONT_KEY_GOTHIC_14_BOLD);
+  GFont af = fonts_get_system_font(big && !compact ? FONT_KEY_GOTHIC_18 : FONT_KEY_GOTHIC_14);
+  int lh = compact ? 17 : (big ? 24 : 18);
   int half = b.size.w / 2;
-  for (int i = 0; i < 5; i++) {
-    if (i == 2 || i == 4) {
+  for (int i = 0; i < 9; i++) {
+    if (compact && i == 4) continue;   // BACK weglassen, Platz fuer Touch-Zeilen
+    if (!compact && i >= 5) break;
+    if (i == 2 || i == 4 || i == 5) {
       graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorCobaltBlue, GColorWhite));
       graphics_fill_rect(ctx, GRect(8, y - 1, b.size.w - 16, 1), 0, GCornerNone);
     }
@@ -1365,6 +1619,22 @@ static void menu_window_unload(Window *w) {
   menu_layer_destroy(s_menu_layer);
 }
 
+#ifdef PBL_TOUCH
+// ---------------------------------------------------------------------------
+// Touch-Verteilung: Spiel, Highscore-Liste und Steuerung reagieren selbst,
+// die Menues uebernimmt die System-Touch-Navigation
+// ---------------------------------------------------------------------------
+static void touch_handler(const TouchEvent *e, void *ctx) {
+  Window *top = window_stack_get_top_window();
+  if (top == s_game_window) {
+    game_touch(e);
+  } else if ((top == s_hs_window || top == s_intro_window) && e->type == TouchEvent_Liftoff) {
+    window_stack_remove(top, true);  // Antippen = weiter / zurueck
+  }
+}
+
+#endif  // PBL_TOUCH
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -1391,11 +1661,26 @@ static void init(void) {
   s_settings_window = make_window((WindowHandlers){
     .load = settings_window_load, .unload = settings_window_unload}, NULL);
 
+  // Touch nur auf Uhren mit Touchscreen (Pebble Time 2)
+#ifdef PBL_TOUCH
+  s_touch = touch_service_is_enabled();
+  if (s_touch) {
+    app_touch_navigation_enable(true);  // Menues per Finger scrollen/antippen
+    window_set_touch_bridge_disabled(s_game_window, true);
+    window_set_touch_bridge_disabled(s_hs_window, true);
+    window_set_touch_bridge_disabled(s_intro_window, true);
+    touch_service_subscribe(touch_handler, NULL);
+  }
+#endif
+
   window_stack_push(s_menu_window, false);
 }
 
 static void deinit(void) {
   light_enable(false);
+#ifdef PBL_TOUCH
+  if (s_touch) touch_service_unsubscribe();
+#endif
   window_destroy(s_settings_window);
   window_destroy(s_hs_window);
   window_destroy(s_game_window);
